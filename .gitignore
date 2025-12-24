@@ -1,0 +1,39 @@
+# --- Python & System ---
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+Thumbs.db
+.env
+.venv
+venv/
+env/
+
+# --- IDEs ---
+.vscode/
+.idea/
+
+# --- Large SNN Datasets (Tonic / DVS) ---
+# Don't upload gigabytes of event data to GitHub
+data/
+cache/
+dvs_test/
+dvs_train/
+
+# --- Training Outputs & Logs ---
+# Ignore local checkpoint folders from your code
+IMDB_SpikingRetNet_Final/
+S384_8_2_img_128/
+training_log.csv
+*.log
+
+# --- Model Weights ---
+# Weights (.pth) are usually too large for GitHub.
+# It is better to host them on Google Drive/HuggingFace and link them in README.
+*.pth
+*.pt
+*.ckpt
+
+# --- Flask & Web ---
+instance/
+.webassets-cache

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuralPredict | AI Inference</title>
+    <link rel="stylesheet" href="/static/css/styles_ai.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="blob-bg"></div>
+    
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <div class="logo-box">NP</div>
+                <span>NeuralPredict</span>
+            </div>
+            <nav>
+                <a href="#" class="active">Predictor</a>
+                <a href="#">Docs</a>
+            </nav>
+        </header>
+
+        <main>
+            <section class="hero">
+                <h1>Intelligence <span class="gradient-text">Simplified.</span></h1>
+                <p>Deploy state-of-the-art neural networks instantly.</p>
+            </section>
+
+            <form id="predictForm" class="glass-card">
+                <div class="input-group">
+                    <!-- FIX 1: Linked label to select for accessibility -->
+                    <label for="model-select">Target Model</label>
+                    <select name="model" id="model-select" required>
+                        <option value="cnn">Convolutional Neural Network (CNN)</option>
+                        <option value="rnn">Recurrent Neural Network (RNN)</option>
+                        <option value="transformer">Transformer (GPT-Architecture)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="input-data">Input Data</label>
+                    <textarea name="input_data" id="input-data" placeholder="Paste your data or JSON sequence here..." required></textarea>
+                </div>
+
+                <button type="submit" id="submitBtn">
+                    <span class="btn-text">Run Analysis</span>
+                    <div class="spinner"></div>
+                </button>
+            </form>
+
+            <!-- FIX 2: Replaced inline style with 'hidden' class -->
+            <div id="resultArea" class="result-card hidden">
+                <div class="result-header">
+                    <span class="status-dot"></span>
+                    <h3>Inference Result</h3>
+                </div>
+                <pre id="jsonOutput"></pre>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const form = document.getElementById('predictForm');
+        const btn = document.getElementById('submitBtn');
+        const resultArea = document.getElementById('resultArea');
+        const output = document.getElementById('jsonOutput');
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            btn.classList.add('loading');
+            
+            const formData = new FormData(form);
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                output.textContent = JSON.stringify(data, null, 2);
+                
+                // FIX: Use classList to show/hide instead of inline styles
+                resultArea.classList.remove('hidden');
+                resultArea.scrollIntoView({ behavior: 'smooth' });
+            } catch (err) {
+                alert("Connection Error. Is the Flask server running?");
+            } finally {
+                btn.classList.remove('loading');
+            }
+        };
+    </script>
+</body>
+</html>
