@@ -30,7 +30,6 @@ def get_filtered_model_structure():
                         and d not in IGNORED 
                         and not d.startswith('.')]
             
-            # Only add the category to the UI if it actually contains a dataset
             if datasets:
                 structure[cat] = datasets
                 
@@ -38,17 +37,14 @@ def get_filtered_model_structure():
 
 @main.route('/')
 def index():
-    """
-    Renders the main dashboard and passes the dynamic model tree to the frontend.
-    """
     models_tree = get_filtered_model_structure()
     return render_template('index.html', models_tree=models_tree)
 
 @main.route('/predict', methods=['POST'])
 def predict():
     """
-    Handles inference requests. Dynamically loads the processor for the 
-    selected dataset and runs the prediction logic.
+    Dynamically loads the processor and calls the specific dataset function.
+    Matches 'imdb' -> 'run_imdb_inference' and 'cifar10' -> 'run_cifar_inference'.
     """
     category = request.form.get('category')
     dataset = request.form.get('model')
@@ -57,43 +53,44 @@ def predict():
         return jsonify({"error": "Missing category or dataset selection"}), 400
 
     try:
-        # Construct the module path for dynamic loading
-        # Example: app.models.text.imdb.processor
+        # 1. Dynamically import the processor module
+        # Path: app.models.{category}.{dataset}.processor
         module_path = f"app.models.{category}.{dataset}.processor"
         processor = importlib.import_module(module_path)
         
-        # Branching logic based on category type
+        # 2. Determine the function name (e.g., run_imdb_inference)
+        # This matches the function names you used in your processor files
+        func_name = f"run_{dataset}_inference"
+        
+        if not hasattr(processor, func_name):
+            return jsonify({"error": f"Function {func_name} not found in {dataset} processor"}), 500
+        
+        inference_func = getattr(processor, func_name)
+
+        # 3. Execute based on Input Type
         if category == 'text':
             user_input = request.form.get('input_data')
             if not user_input or len(user_input.strip()) < 2:
                 return jsonify({"error": "Please provide valid text input"}), 400
             
-            # Call the specific inference function in the processor
-            result = processor.run_imdb_inference(user_input)
+            # Call processor for text datasets (expects a string)
+            result = inference_func(user_input)
             
         else:
-            # Handle File Uploads for non-text categories
+            # Handle File Uploads for Image, Video, Audio, Neuromorphic
             uploaded_file = request.files.get('file_data')
             if not uploaded_file:
                 return jsonify({"error": f"Please upload a valid {category} file"}), 400
             
-            # Placeholder for other processors (Video/Image/Audio/Neuromorphic)
-            # You would implement run_inference(uploaded_file) in those processors
-            result = {
-                "prediction": f"Processed {category} file: {uploaded_file.filename}",
-                "confidence": "N/A",
-                "metrics": {
-                    "energy": "0.0000",
-                    "sparsity": "0.00%",
-                    "latency": "0.00",
-                    "sops": "0"
-                }
-            }
+            # Call processor for file-based datasets (expects FileStorage object)
+            result = inference_func(uploaded_file)
 
         return jsonify(result)
 
     except ModuleNotFoundError:
-        return jsonify({"error": f"Processor not found for {dataset}"}), 404
+        return jsonify({"error": f"Architecture for '{dataset}' is configured but processor.py is missing."}), 404
     except Exception as e:
-        # Standard error handling to prevent the server from crashing
-        return jsonify({"error": f"Inference Error: {str(e)}"}), 500
+        # Detailed error for debugging, but keeps the server alive
+        import traceback
+        print(traceback.format_exc()) # Logs full error to console
+        return jsonify({"error": f"Inference Engine Error: {str(e)}"}), 500
