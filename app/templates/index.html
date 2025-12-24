@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuralPredict | Neuromorphic Dashboard</title>
+    <!-- Path uses Flask static folder convention -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles_ai.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Animated background layer -->
+    <div class="blob-bg"></div>
+    
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <div class="logo-box">NP</div>
+                <span>NeuralPredict</span>
+            </div>
+            <nav>
+                <a href="#" class="active">Dashboard</a>
+                <a href="https://github.com/KamalShrestha2/Spiking_RetNet" target="_blank">Documentation</a>
+            </nav>
+        </header>
+
+        <main>
+            <section class="hero">
+                <h1>Neuromorphic <span class="gradient-text">Inference.</span></h1>
+                <p>Deploy Spiking Neural Networks with real-time energy and sparsity profiling.</p>
+            </section>
+
+            <form id="predictForm" class="glass-card">
+                <div class="input-grid">
+                    <!-- Dropdown 1: Category -->
+                    <div class="input-group">
+                        <label for="category-select">Data Category</label>
+                        <select id="category-select" required name="category">
+                            <option value="" disabled selected>Select Category...</option>
+                            {% for category in models_tree.keys() %}
+                            <option value="{{ category }}">{{ category | upper }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Dropdown 2: Dataset (Dependent) -->
+                    <div class="input-group">
+                        <label for="model-select">Target Dataset</label>
+                        <select name="model" id="model-select" required disabled>
+                            <option value="" disabled selected>Waiting for category...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Input Zone: Textarea for text, File Upload for others -->
+                <div id="text-input-group" class="input-group">
+                    <label for="input-data">Sequence Input</label>
+                    <textarea name="input_data" id="input-data" placeholder="Paste text data here for analysis..."></textarea>
+                </div>
+
+                <div id="file-input-group" class="input-group hidden">
+                    <label id="file-label">Upload Sample</label>
+                    <div class="file-upload-wrapper">
+                        <input type="file" name="file_data" id="file-data">
+                        <div class="file-custom-ui">
+                            <span id="file-name-display">No file chosen</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn">
+                    <span class="btn-text">Run Analytics</span>
+                    <div class="spinner"></div>
+                </button>
+            </form>
+
+            <!-- Results Section -->
+            <div id="resultArea" class="hidden">
+                <div class="result-summary card">
+                    <h2 id="main-pred">--</h2>
+                    <p id="confidence">Confidence: --%</p>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="card">
+                        <h3>Energy</h3>
+                        <p><span id="m-energy">0</span> <small>mJ</small></p>
+                    </div>
+                    <div class="card">
+                        <h3>Sparsity</h3>
+                        <p id="m-sparsity">0%</p>
+                    </div>
+                    <div class="card">
+                        <h3>Latency</h3>
+                        <p><span id="m-latency">0</span> <small>ms</small></p>
+                    </div>
+                    <div class="card">
+                        <h3>SOPs</h3>
+                        <p id="m-sops">0</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Convert Flask data structure to JS object
+        const modelsTree = {{ models_tree | tojson }};
+        
+        const catSelect = document.getElementById('category-select');
+        const modelSelect = document.getElementById('model-select');
+        const textGroup = document.getElementById('text-input-group');
+        const fileGroup = document.getElementById('file-input-group');
+        const fileInput = document.getElementById('file-data');
+        const fileNameDisplay = document.getElementById('file-name-display');
+
+        // Handle Chained Dropdowns and Input Toggles
+        catSelect.onchange = (e) => {
+            const cat = e.target.value;
+            
+            // 1. Update dataset selection
+            modelSelect.disabled = false;
+            modelSelect.innerHTML = '<option value="" disabled selected>Select Dataset...</option>';
+            (modelsTree[cat] || []).forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.textContent = d.toUpperCase().replace(/_/g, ' ');
+                modelSelect.appendChild(opt);
+            });
+
+            // 2. Toggle input UI based on category
+            if(cat === 'text') {
+                textGroup.classList.remove('hidden');
+                fileGroup.classList.add('hidden');
+            } else {
+                textGroup.classList.add('hidden');
+                fileGroup.classList.remove('hidden');
+                document.getElementById('file-label').innerText = `Upload ${cat.charAt(0).toUpperCase() + cat.slice(1)} Sample`;
+                
+                // Set file filters
+                const filters = { 'image': 'image/*', 'video': 'video/*', 'audio': 'audio/*', 'neuromorphic': '.npy,.bin,.dat' };
+                fileInput.accept = filters[cat] || '*/*';
+            }
+        };
+
+        // File name preview
+        fileInput.onchange = (e) => {
+            fileNameDisplay.innerText = e.target.files[0]?.name || "No file chosen";
+        };
+
+        // Handle AJAX submission
+        document.getElementById('predictForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.classList.add('loading');
+            
+            const formData = new FormData(e.target);
+            
+            try {
+                const response = await fetch('/predict', { method: 'POST', body: formData });
+                const d = await response.json();
+                
+                if (d.error) {
+                    alert(d.error);
+                } else {
+                    // Update main results
+                    document.getElementById('main-pred').innerText = d.prediction;
+                    document.getElementById('confidence').innerText = `Confidence: ${d.confidence}%`;
+                    
+                    // Update metrics
+                    document.getElementById('m-energy').innerText = d.metrics.energy;
+                    document.getElementById('m-sparsity').innerText = d.metrics.sparsity;
+                    document.getElementById('m-latency').innerText = d.metrics.latency;
+                    document.getElementById('m-sops').innerText = d.metrics.sops;
+                    
+                    document.getElementById('resultArea').classList.remove('hidden');
+                    document.getElementById('resultArea').scrollIntoView({behavior: 'smooth'});
+                }
+            } catch (err) {
+                alert("Server connection failed. Ensure the CPU server is running.");
+            } finally {
+                btn.classList.remove('loading');
+            }
+        };
+    </script>
+</body>
+</html>

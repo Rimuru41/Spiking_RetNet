@@ -28,3 +28,16 @@ cupy-cuda12x  # This works for the current Colab CUDA 12.x environment
 scikit-learn
 matplotlib
 seaborn
+
+
+
+torch --index-url https://download.pytorch.org/whl/cpu
+transformers
+spikingjelly
+numpy
+pandas
+tqdm
+
+
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install transformers spikingjelly numpy pandas tqdm

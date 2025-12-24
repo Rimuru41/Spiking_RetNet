@@ -1,5 +1,11 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import math
+from spikingjelly.clock_driven.neuron import MultiStepLIFNode
+
 # ==========================================
-# 2. HELPER FUNCTIONS
+# HELPER FUNCTIONS
 # ==========================================
 def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
     def norm_cdf(x):
@@ -28,10 +34,9 @@ class DropPath(nn.Module):
         random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
         random_tensor.floor_()
         return x.div(keep_prob) * random_tensor
-    
-    
+
 # ==========================================
-#  MODEL ARCHITECTURE
+# MODEL COMPONENTS
 # ==========================================
 
 class MLP(nn.Module):
@@ -51,9 +56,9 @@ class MLP(nn.Module):
 
     def forward(self, x):
         T, B, N, C = x.shape
-        x_ = x.flatten(0, 1)
+        x_flat = x.flatten(0, 1)
         
-        x = self.fc1_linear(x_)
+        x = self.fc1_linear(x_flat)
         x = self.fc1_bn(x.transpose(-1, -2)).transpose(-1, -2).reshape(T, B, N, self.c_hidden).contiguous()
         x = self.fc1_lif(x)
         x = self.dropout(x)
@@ -73,25 +78,20 @@ class SpikingRetention(nn.Module):
         self.scale = self.head_dim ** -0.5
         self.bidirectional = bidirectional
 
-        self.q_linear = nn.Linear(dim, dim)
-        self.q_bn = nn.BatchNorm1d(dim)
+        self.q_linear = nn.Linear(dim, dim); self.q_bn = nn.BatchNorm1d(dim)
         self.q_lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend=backend)
 
-        self.k_linear = nn.Linear(dim, dim)
-        self.k_bn = nn.BatchNorm1d(dim)
+        self.k_linear = nn.Linear(dim, dim); self.k_bn = nn.BatchNorm1d(dim)
         self.k_lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend=backend)
 
-        self.v_linear = nn.Linear(dim, dim)
-        self.v_bn = nn.BatchNorm1d(dim)
+        self.v_linear = nn.Linear(dim, dim); self.v_bn = nn.BatchNorm1d(dim)
         self.v_lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend=backend)
 
-        self.proj_linear = nn.Linear(dim, dim)
-        self.proj_bn = nn.BatchNorm1d(dim)
+        self.proj_linear = nn.Linear(dim, dim); self.proj_bn = nn.BatchNorm1d(dim)
         self.proj_lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend=backend)
         self.retention_lif = MultiStepLIFNode(tau=2.0, v_threshold=0.5, detach_reset=True, backend=backend)
         
         self.attn_dropout = nn.Dropout(dropout)
-
         gamma = 1.0 - 2.0 ** (-5.0 - torch.arange(0, num_heads, dtype=torch.float32))
         self.register_buffer('gamma', gamma)
 
@@ -117,15 +117,12 @@ class SpikingRetention(nn.Module):
         attn_score = (q @ k.transpose(-2, -1)) * self.scale
         D = self.get_decay_mask(N, x.device)
         attn_score = attn_score * D.unsqueeze(0).unsqueeze(0)
-        
         attn_score = self.attn_dropout(attn_score)
 
         x = attn_score @ v
         x = x.transpose(2, 3).reshape(T, B, N, C).contiguous()
         x = self.retention_lif(x)
-
-        x = x.flatten(0, 1)
-        x = self.proj_lif(self.proj_bn(self.proj_linear(x).transpose(-1,-2)).transpose(-1,-2).reshape(T,B,N,C))
+        x = self.proj_lif(self.proj_bn(self.proj_linear(x.flatten(0, 1)).transpose(-1,-2)).transpose(-1,-2).reshape(T,B,N,C))
         return x
 
 class Block(nn.Module):
@@ -135,7 +132,6 @@ class Block(nn.Module):
         self.attn = SpikingRetention(dim, num_heads=num_heads, backend=backend, dropout=drop)
         self.norm2 = nn.LayerNorm(dim)
         self.mlp = MLP(in_features=dim, hidden_features=int(dim * mlp_ratio), drop=drop, backend=backend)
-        
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x):
@@ -144,86 +140,47 @@ class Block(nn.Module):
         return x
 
 class SpikingTextEmbedding(nn.Module):
-    def __init__(self, vocab_size, embed_dim, max_len, T=4, backend='torch', 
-                 dropout=0.0, token_drop_prob=0.0):
+    def __init__(self, vocab_size, embed_dim, max_len, T=4, backend='torch', dropout=0.0, token_drop_prob=0.0):
         super().__init__()
         self.T = T
         self.token_drop_prob = token_drop_prob
-        self.MASK_TOKEN_ID = 103 # BERT mask token ID
-        
+        self.MASK_TOKEN_ID = 103 
         self.embedding = nn.Embedding(vocab_size, embed_dim)
         self.pos_embed = nn.Parameter(torch.zeros(1, max_len, embed_dim))
         trunc_normal_(self.pos_embed, std=.02)
-        
         self.norm = nn.LayerNorm(embed_dim)
         self.dropout = nn.Dropout(p=dropout) 
         self.lif = MultiStepLIFNode(tau=2.0, detach_reset=True, backend=backend)
 
     def forward(self, x):
-        # x: [B, Seq_Len]
-        
-        # --- CORRECTED TOKEN DROPOUT (Replace with [MASK]) ---
-        if self.training and self.token_drop_prob > 0.0:
-            drop_mask = torch.rand(x.shape, device=x.device) < self.token_drop_prob
-            x = torch.where(drop_mask, torch.tensor(self.MASK_TOKEN_ID, device=x.device), x)
-        # -----------------------------------------------------
-
         x = self.embedding(x)
         x = x + self.pos_embed[:, :x.size(1), :] 
         x = self.norm(x)
         x = self.dropout(x)
-
         x = x.unsqueeze(0).repeat(self.T, 1, 1, 1) 
         x = self.lif(x)
         return x
 
 class SpikingRetNetText(nn.Module):
-    def __init__(self, vocab_size=20000, max_len=200, num_classes=2,
-                 embed_dims=256, num_heads=8, mlp_ratios=4, depths=2, T=4, 
-                 backend='cupy', dropout=0.0, token_drop_prob=0.0,
-                 drop_path_rate=0.0): 
+    def __init__(self, vocab_size=30522, max_len=512, num_classes=2, embed_dims=256, num_heads=8, mlp_ratios=4, depths=2, T=4, backend='torch', dropout=0.0, token_drop_prob=0.0, drop_path_rate=0.0): 
         super().__init__()
         self.T = T
-        
-        try:
-            import cupy
-        except ImportError:
-            if backend == 'cupy':
-                print("!! CuPy not found. Falling back to 'torch' backend.")
-                backend = 'torch'
-
-        self.text_embed = SpikingTextEmbedding(
-            vocab_size, embed_dims, max_len, T, backend, 
-            dropout=dropout, token_drop_prob=token_drop_prob
-        )
-        
+        self.text_embed = SpikingTextEmbedding(vocab_size, embed_dims, max_len, T, backend, dropout=dropout, token_drop_prob=token_drop_prob)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depths)] 
-        
-        self.blocks = nn.ModuleList([
-            Block(dim=embed_dims, num_heads=num_heads, mlp_ratio=mlp_ratios, 
-                  drop=dropout, drop_path=dpr[i], backend=backend)
-            for i in range(depths)
-        ])
-        
+        self.blocks = nn.ModuleList([Block(dim=embed_dims, num_heads=num_heads, mlp_ratio=mlp_ratios, drop=dropout, drop_path=dpr[i], backend=backend) for i in range(depths)])
         self.head = nn.Linear(embed_dims, num_classes)
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+            if m.bias is not None: nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
-            nn.init.constant_(m.weight, 1.0)
+            nn.init.constant_(m.bias, 0); nn.init.constant_(m.weight, 1.0)
 
     def forward(self, x):
         x = self.text_embed(x) 
-        for blk in self.blocks:
-            x = blk(x)
-        x = x.mean(2) #heads : t * B* H * N * D
-        x = x.mean(0) #timesteps
+        for blk in self.blocks: x = blk(x)
+        x = x.mean(2).mean(0) 
         x = self.head(x)
         return x
-
-

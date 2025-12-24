@@ -1,3 +1,4 @@
+/* --- 1. VARIABLES & THEME --- */
 :root {
     --primary: #00f2ff;
     --secondary: #7000ff;
@@ -6,36 +7,41 @@
     --text: #ffffff;
     --text-dim: #94a3b8;
     --border: rgba(255, 255, 255, 0.1);
+    --font-main: 'Inter', sans-serif;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
 }
 
-/* FIX: Helper class to avoid inline styles in HTML */
-.hidden {
-    display: none;
-}
-
+/* --- 2. GLOBAL RESET --- */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
     background-color: var(--bg);
     color: var(--text);
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-main);
     overflow-x: hidden;
+    line-height: 1.6;
 }
 
+.hidden { display: none !important; }
+
+/* --- 3. ANIMATED BACKGROUND --- */
 .blob-bg {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
     z-index: -1;
-    background: radial-gradient(circle at 20% 30%, rgba(0, 242, 255, 0.05) 0%, transparent 40%),
-                radial-gradient(circle at 80% 70%, rgba(112, 0, 255, 0.05) 0%, transparent 40%);
+    background: 
+        radial-gradient(circle at 20% 30%, rgba(0, 242, 255, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(112, 0, 255, 0.05) 0%, transparent 40%);
 }
 
 .app-container {
-    max-width: 800px;
+    max-width: 900px;
     margin: 0 auto;
     padding: 2rem;
 }
 
+/* --- 4. HEADER & NAVIGATION --- */
 header {
     display: flex;
     justify-content: space-between;
@@ -46,17 +52,17 @@ header {
 .logo {
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-family: 'Space Grotesk', sans-serif;
+    gap: 10px;
     font-weight: 700;
+    font-family: var(--font-display);
     font-size: 1.2rem;
 }
 
 .logo-box {
     background: linear-gradient(135deg, var(--primary), var(--secondary));
-    padding: 5px 10px;
-    border-radius: 8px;
-    color: black;
+    padding: 4px 8px;
+    border-radius: 6px;
+    color: #000;
 }
 
 nav a {
@@ -69,66 +75,111 @@ nav a {
 
 nav a.active, nav a:hover { color: var(--primary); }
 
+/* --- 5. HERO SECTION --- */
 .hero { text-align: center; margin-bottom: 3rem; }
-.hero h1 { font-family: 'Space Grotesk', sans-serif; font-size: 3rem; margin-bottom: 10px; }
-
+.hero h1 { font-family: var(--font-display); font-size: 3rem; margin-bottom: 10px; }
 .gradient-text { 
     background: linear-gradient(90deg, var(--primary), var(--secondary)); 
     -webkit-background-clip: text; 
-    /* FIX 3: Added standard property for compatibility */
-    background-clip: text; 
+    background-clip: text;
     -webkit-text-fill-color: transparent; 
 }
-
 .hero p { color: var(--text-dim); font-size: 1.1rem; }
 
+/* --- 6. GLASS CARD & FORM --- */
 .glass-card {
     background: var(--card);
     border: 1px solid var(--border);
-    padding: 2rem;
+    padding: 2.5rem;
     border-radius: 24px;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+.input-grid { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 1.5rem; 
 }
 
 .input-group { margin-bottom: 1.5rem; }
-label { display: block; color: var(--text-dim); margin-bottom: 8px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+
+label { 
+    color: var(--text-dim); 
+    font-size: 0.75rem; 
+    text-transform: uppercase; 
+    letter-spacing: 1px; 
+    display: block; 
+    margin-bottom: 8px; 
+}
 
 select, textarea {
     width: 100%;
     background: #000;
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px;
-    color: white;
-    font-family: 'Inter', sans-serif;
+    border-radius: 10px;
+    padding: 14px;
+    color: #fff;
+    font-size: 1rem;
     outline: none;
     transition: 0.3s;
 }
 
-textarea { font-family: 'JetBrains Mono', monospace; height: 150px; resize: none; }
-select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 10px rgba(0, 242, 255, 0.1); }
+textarea { 
+    font-family: var(--font-mono); 
+    height: 140px; 
+    resize: none; 
+}
 
+select:focus, textarea:focus { border-color: var(--primary); }
+select:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* --- 7. FILE UPLOAD STYLING --- */
+.file-upload-wrapper { position: relative; }
+#file-data { 
+    position: absolute; 
+    opacity: 0; 
+    width: 100%; 
+    height: 100%; 
+    cursor: pointer; 
+    z-index: 10;
+}
+
+.file-custom-ui {
+    background: #000;
+    border: 1px dashed var(--border);
+    padding: 2.5rem;
+    text-align: center;
+    border-radius: 10px;
+    transition: 0.3s;
+}
+
+#file-data:hover + .file-custom-ui { border-color: var(--primary); background: rgba(0, 242, 255, 0.05); }
+#file-name-display { color: var(--primary); font-family: var(--font-mono); font-size: 0.9rem; }
+
+/* --- 8. BUTTON & LOADING SPINNER --- */
 button {
     width: 100%;
     padding: 16px;
     border-radius: 12px;
     border: none;
-    background: white;
+    background: #fff;
+    color: #000;
     font-weight: 700;
+    font-size: 1rem;
     cursor: pointer;
     transition: 0.3s;
-    position: relative;
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
+    gap: 10px;
 }
 
-button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(255,255,255,0.1); }
+button:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(255,255,255,0.15); }
 
 .spinner {
     width: 20px; height: 20px;
     border: 3px solid rgba(0,0,0,0.1);
-    border-top: 3px solid black;
+    border-top: 3px solid #000;
     border-radius: 50%;
     display: none;
     animation: spin 0.8s linear infinite;
@@ -136,22 +187,70 @@ button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(255,255
 
 button.loading .btn-text { display: none; }
 button.loading .spinner { display: block; }
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.result-card {
-    margin-top: 2rem;
-    background: #0a0a12;
-    border: 1px solid var(--primary);
+/* --- 9. ANALYTICS & METRICS --- */
+.result-summary { 
+    text-align: center; 
+    margin-top: 3rem; 
+    margin-bottom: 1.5rem; 
+}
+
+#main-pred { 
+    font-size: 2.8rem; 
+    font-family: var(--font-display); 
+    color: var(--primary); 
+    text-transform: capitalize;
+}
+
+#confidence { color: var(--text-dim); margin-top: 5px; }
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
     padding: 1.5rem;
     border-radius: 16px;
-    animation: slideUp 0.5s ease;
+    text-align: center;
+    transition: 0.3s;
 }
 
-.result-header { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
-.status-dot { width: 8px; height: 8px; background: var(--primary); border-radius: 50%; box-shadow: 0 0 10px var(--primary); }
-pre { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--primary); overflow-x: auto; }
+.card:hover { border-color: var(--primary); transform: scale(1.02); }
+
+.card h3 { 
+    font-size: 0.7rem; 
+    color: var(--text-dim); 
+    text-transform: uppercase; 
+    letter-spacing: 1px;
+    margin-bottom: 8px; 
+}
+
+.card p { 
+    font-size: 1.5rem; 
+    font-family: var(--font-mono); 
+    font-weight: 700; 
+    color: var(--primary); 
+}
+
+.card small { font-size: 0.7rem; color: var(--text-dim); margin-left: 2px; }
+
+/* --- 10. RESPONSIVE DESIGN --- */
+@media (max-width: 768px) {
+    .input-grid { grid-template-columns: 1fr; }
+    .metrics-grid { grid-template-columns: 1fr 1fr; }
+    .hero h1 { font-size: 2.2rem; }
+    .app-container { padding: 1rem; }
+}
 
 @keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
+    from { opacity: 0; transform: translateY(30px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+#resultArea:not(.hidden) { animation: slideUp 0.6s ease-out; }
