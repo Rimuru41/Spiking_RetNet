@@ -178,7 +178,3 @@ The app preloads all processor modules on startup in [app/routes.py](app/routes.
 ### GitHub push fails for large model files
 
 Do not commit model binaries larger than 100 MB. Keep them out of Git and fetch them at runtime using [download_models.py](download_models.py).
-
-## Citation
-
-If you use this project in academic or technical work, cite the SRN paper included in this repository and reference this implementation.
