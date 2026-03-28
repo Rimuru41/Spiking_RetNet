@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRN Dashboard</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='android-chrome-512x512.png') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles_ai.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="blob-bg"></div>
+    
+    <div class="app-container">
+        <header>
+            <div class="logo"><div class="logo-box">SRN</div><span>Spiking Retentive Network</span></div>
+            <nav>
+                <a href="#" class="active">Dashboard</a>
+                <a href="https://github.com/Rimuru41/Spiking_RetNet" target="_blank">Docs</a>
+            </nav>
+        </header>
+
+        <main>
+            <section class="hero">
+                <h1>Spiking <span class="gradient-text">Retention.</span></h1>
+                <p>Deploy Spiking Retention Networks with real-time energy profiling.</p>
+            </section>
+
+            <form id="predictForm" class="glass-card">
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label for="category-select">Data Category</label>
+                        <select id="category-select" required name="category">
+                            <option value="" disabled selected>Select Category...</option>
+                            {% for category in models_tree.keys() %}
+                            <option value="{{ category }}">{{ category | upper }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="model-select">Target Model</label>
+                        <select name="model" id="model-select" required disabled>
+                            <option value="" disabled selected>Waiting for category...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="text-input-group" class="input-group">
+                    <label for="input-data">Sequence Input</label>
+                    <textarea name="input_data" id="input-data" placeholder="Paste data for analysis..."></textarea>
+                </div>
+
+                <div id="file-input-group" class="input-group hidden">
+                    <label id="file-label">Upload Sample</label>
+                    
+                    <div id="upload-ui" class="file-upload-wrapper">
+                        <!-- The hidden actual input -->
+                        <input type="file" name="file_data" id="file-data">
+                        <!-- The visible custom UI -->
+                        <div class="file-custom-ui">
+                            <span id="file-name-display">No file chosen</span>
+                        </div>
+                    </div>
+
+                    <div id="mic-ui" class="mic-container hidden">
+                        <div class="mic-button-wrapper">
+                            <button type="button" id="micBtn" class="mic-button">
+                                <span class="mic-icon">🎤</span>
+                                <div class="pulse-ring"></div>
+                            </button>
+                            <p id="mic-status">Hold to Speak</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn">
+                    <span class="btn-text">Run Analytics</span>
+                    <div class="spinner"></div>
+                </button>
+            </form>
+
+            <div id="resultArea" class="hidden">
+                <div class="result-summary card">
+                    <h2 id="main-pred">--</h2>
+                    <p id="confidence">Confidence: --%</p>
+                </div>
+                
+                <div class="metrics-grid">
+                    <div class="card"><h3>Energy</h3><p><span id="m-energy">0</span> <small>mJ</small></p></div>
+                    <div class="card"><h3>Sparsity</h3><p id="m-sparsity">0%</p></div>
+                    <div class="card"><h3>Latency</h3><p><span id="m-latency">0</span> <small>ms</small></p></div>
+                    <div class="card"><h3>SOPs</h3><p id="m-sops">0</p></div>
+                    <div class="card"><h3>MACs</h3><p id="m-macs">0</p></div>
+                    <div class="card"><h3>Neurons</h3><p id="m-neurons">0</p></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const modelsTree = {{ models_tree | tojson }};
+        const catSelect = document.getElementById('category-select');
+        const modelSelect = document.getElementById('model-select');
+        const textGroup = document.getElementById('text-input-group');
+        const fileGroup = document.getElementById('file-input-group');
+        const fileInput = document.getElementById('file-data');
+        const fileNameDisplay = document.getElementById('file-name-display');
+        const submitBtn = document.getElementById('submitBtn');
+        
+        const micUi = document.getElementById('mic-ui');
+        const uploadUi = document.getElementById('upload-ui');
+        const micBtn = document.getElementById('micBtn');
+        const micStatus = document.getElementById('mic-status');
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        // UPDATE FILE NAME DISPLAY
+        fileInput.onchange = () => {
+            if (fileInput.files.length > 0) {
+                fileNameDisplay.innerText = fileInput.files[0].name;
+            } else {
+                fileNameDisplay.innerText = "No file chosen";
+            }
+        };
+
+        catSelect.onchange = (e) => {
+            const cat = e.target.value;
+            modelSelect.disabled = false;
+            modelSelect.innerHTML = '<option value="" disabled selected>Select Model...</option>';
+            
+            // Clear previous file selection UI
+            fileInput.value = "";
+            fileNameDisplay.innerText = "No file chosen";
+
+            (modelsTree[cat] || []).forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d; opt.textContent = d.toUpperCase().replace(/_/g, ' ');
+                modelSelect.appendChild(opt);
+            });
+
+            if(cat === 'text') {
+                textGroup.classList.remove('hidden');
+                fileGroup.classList.add('hidden');
+                submitBtn.classList.remove('hidden');
+            } else if (cat === 'audio') {
+                textGroup.classList.add('hidden');
+                fileGroup.classList.remove('hidden');
+                micUi.classList.remove('hidden');
+                uploadUi.classList.add('hidden');
+                submitBtn.classList.add('hidden');
+                document.getElementById('file-label').innerText = "Voice Recognition";
+            } else {
+                textGroup.classList.add('hidden');
+                fileGroup.classList.remove('hidden');
+                micUi.classList.add('hidden');
+                uploadUi.classList.remove('hidden');
+                submitBtn.classList.remove('hidden');
+                document.getElementById('file-label').innerText = `Upload ${cat.charAt(0).toUpperCase() + cat.slice(1)} Sample`;
+                const filters = { 'image': 'image/*', 'video': 'video/*', 'neuromorphic': '.npy,.bin,.dat,.aedat' };
+                fileInput.accept = filters[cat] || '*/*';
+            }
+        };
+
+        // MICROPHONE LOGIC
+        micBtn.onmousedown = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    processInference(audioBlob);
+                };
+                mediaRecorder.start();
+                micBtn.classList.add('recording');
+                micStatus.innerText = "Listening...";
+            } catch (err) { alert("Microphone access denied."); }
+        };
+
+        micBtn.onmouseup = () => {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                micBtn.classList.remove('recording');
+                micStatus.innerText = "Analyzing...";
+            }
+        };
+
+        async function processInference(blobOrFormData) {
+            const formData = (blobOrFormData instanceof Blob) ? new FormData() : blobOrFormData;
+            if (blobOrFormData instanceof Blob) {
+                formData.append('category', catSelect.value);
+                formData.append('model', modelSelect.value);
+                formData.append('file_data', blobOrFormData, 'recording.wav');
+            }
+
+            try {
+                const response = await fetch('/predict', { method: 'POST', body: formData });
+                const d = await response.json();
+                if (d.error) {
+                    alert(d.error);
+                    micStatus.innerText = "Hold to Speak";
+                } else {
+                    displayResults(d);
+                    if (catSelect.value === 'audio') micStatus.innerText = "Hold to Speak";
+                }
+            } catch (err) { alert("Inference failed."); }
+        }
+
+        function displayResults(d) {
+            document.getElementById('main-pred').innerText = d.prediction;
+            document.getElementById('confidence').innerText = `Confidence: ${d.confidence}%`;
+            document.getElementById('m-energy').innerText = d.metrics.energy;
+            document.getElementById('m-sparsity').innerText = d.metrics.sparsity;
+            document.getElementById('m-latency').innerText = d.metrics.latency;
+            document.getElementById('m-sops').innerText = d.metrics.sops;
+            document.getElementById('m-macs').innerText = d.metrics.macs;
+            document.getElementById('m-neurons').innerText = d.metrics.neurons;
+            document.getElementById('resultArea').classList.remove('hidden');
+            document.getElementById('resultArea').scrollIntoView({behavior: 'smooth'});
+        }
+
+        document.getElementById('predictForm').onsubmit = (e) => {
+            e.preventDefault();
+            submitBtn.classList.add('loading');
+            processInference(new FormData(e.target)).finally(() => submitBtn.classList.remove('loading'));
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+Thumbs.db
+
+# Environments
+.env
+.venv
+venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+
+# Large datasets
+data/
+cache/
+dvs_test/
+dvs_train/
+
+# Training outputs
+IMDB_SpikingRetNet_Final/
+S384_8_2_img_128/
+training_log.csv
+*.log
+
+# Model weights (downloaded from HF at startup)
+*.pth
+*.pth.tar
+*.pt
+*.ckpt
+*.tar
+# HF upload folder
+hf_upload/
+okay.py
+runtime.txt
+
+# Flask
+instance/
+.webassets-cache
+
+# Railway files
+.railwayignore
+railway.toml
+Procfile
+
+#zip files
+*.zip
